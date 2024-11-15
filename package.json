@@ -1,0 +1,70 @@
+{
+  "name": "citizenshield-admin",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@ant-design/icons": "^5.5.1",
+    "@popperjs/core": "^2.11.8",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react-router-dom": "^5.3.3",
+    "@types/react-select": "^5.0.0",
+    "antd": "^5.21.4",
+    "autoprefixer": "^10.4.20",
+    "bootstrap": "^5.3.3",
+    "firebase": "^10.14.1",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.453.0",
+    "postcss": "^8.4.47",
+    "react": "^18.3.1",
+    "react-bootstrap": "^2.10.5",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.3.0",
+    "react-leaflet": "^4.2.1",
+    "react-router-dom": "^6.27.0",
+    "react-scripts": "5.0.1",
+    "react-select": "^5.8.2",
+    "tailwindcss": "^3.4.14",
+    "tailwindcss-dark-mode": "^1.1.7",
+    "web-vitals": "^4.2.3"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@babel/plugin-syntax-flow": "^7.25.7",
+    "@babel/plugin-transform-react-jsx": "^7.25.7",
+    "@types/firebase": "^3.2.1",
+    "@types/jest": "^29.5.13",
+    "@types/leaflet": "^1.9.12",
+    "@types/node": "^22.7.4",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.2"
+  }
+}
