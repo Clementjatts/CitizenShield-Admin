@@ -13,14 +13,18 @@ export interface Alert {
     id: number;
     type: string;
     location: string;
-    latitude: number;
-    longitude: number;
+    initialLocation: {
+        // Changed to match mobile app structure
+        latitude: number;
+        longitude: number;
+    };
     status: "Active" | "Resolved";
     priority: "Low" | "Medium" | "High";
     timestamp: string;
     initiatorName: string;
-    initiatorUserId: number;
+    userId: string; // Changed from initiatorUserId and type changed to string
     description: string;
+    resolvedAt?: Date; // Added to handle resolution timestamp
 }
 
 export interface EmergencyContact {

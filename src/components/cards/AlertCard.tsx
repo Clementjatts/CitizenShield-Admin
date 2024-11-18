@@ -60,7 +60,10 @@ const AlertCard: React.FC<AlertCardProps> = ({
 
     const handleMapClick = () => {
         setShowMap(!showMap);
-        setMapCenter([alert.latitude, alert.longitude], 16);
+        setMapCenter(
+            [alert.initialLocation.latitude, alert.initialLocation.longitude],
+            16
+        );
     };
 
     const handleDelete = async () => {
@@ -105,7 +108,10 @@ const AlertCard: React.FC<AlertCardProps> = ({
             {showMap && (
                 <MapView
                     alerts={[alert]}
-                    center={[alert.latitude, alert.longitude]}
+                    center={[
+                        alert.initialLocation.latitude,
+                        alert.initialLocation.longitude,
+                    ]}
                     zoom={16}
                     onClose={() => setShowMap(false)}
                 />
@@ -146,7 +152,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
                         <Clock size={16} className="mr-1" />
                         <span>{getTimeElapsed(alert.timestamp)}</span>
                         <User size={16} className="ml-4 mr-1" />
-                        <span>{alert.initiatorName}</span>
+                        <span>Initiator: {alert.initiatorName}</span>
                     </div>
 
                     <div className="mb-3">
@@ -154,10 +160,12 @@ const AlertCard: React.FC<AlertCardProps> = ({
                             <strong>Location:</strong> {alert.location}
                         </p>
                         <p>
-                            <strong>Latitude:</strong> {alert.latitude}
+                            <strong>Coordinates:</strong>{" "}
+                            {alert.initialLocation.latitude.toFixed(6)},{" "}
+                            {alert.initialLocation.longitude.toFixed(6)}
                         </p>
                         <p>
-                            <strong>Longitude:</strong> {alert.longitude}
+                            <strong>User ID:</strong> {alert.userId}
                         </p>
                     </div>
 
@@ -180,7 +188,10 @@ const AlertCard: React.FC<AlertCardProps> = ({
                                                 variant="outline-primary"
                                                 size="sm"
                                                 onClick={() =>
-                                                    setMapCenter([update.latitude, update.longitude], 16)
+                                                    setMapCenter(
+                                                        [update.latitude, update.longitude],
+                                                        16
+                                                    )
                                                 }
                                             >
                                                 <MapPin size={14} className="mr-1" />
@@ -269,7 +280,11 @@ const AlertCard: React.FC<AlertCardProps> = ({
                     >
                         Cancel
                     </Button>
-                    <Button variant="success" onClick={handleResolve} disabled={loading}>
+                    <Button
+                        variant="success"
+                        onClick={handleResolve}
+                        disabled={loading}
+                    >
                         {loading ? "Resolving..." : "Resolve"}
                     </Button>
                 </Modal.Footer>
