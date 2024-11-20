@@ -53,7 +53,7 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
         const alertsRef = collection(db, "emergencies");
         const q = query(
             alertsRef,
-            where("status", "==", activeTab === "active" ? "Active" : "Resolved"),
+            where("status", "==", activeTab === "active" ? "active" : "resolved"),
             orderBy("timestamp", "desc")
         );
 
