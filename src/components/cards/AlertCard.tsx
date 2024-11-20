@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button, Modal, Alert } from "react-bootstrap";
-import { Trash2, CheckCircle, MapPin, Clock, User } from "lucide-react";
-import MapView from "../map/MapView";
+import { Trash2, CheckCircle, MapPin, Clock, User, AlertTriangle } from "lucide-react";
 import { Alert as AlertType } from "../../types/shared";
 import { handleFirebaseError } from "../../utils/errorHandler";
 
@@ -19,51 +18,84 @@ interface AlertCardProps {
     locationUpdates?: LocationUpdate[];
 }
 
+const getPriorityColor = (priority: string) => {
+    switch (priority) {
+        case "High":
+            return "bg-red-600";
+        case "Medium":
+            return "bg-yellow-500";
+        case "Low":
+            return "bg-green-500";
+        default:
+            return "bg-blue-500";
+    }
+};
+
+const getStatusColor = (status: string) => {
+    return status === "Active" ? "bg-red-500" : "bg-green-500";
+};
+
+const getTimeElapsed = (timestamp: string) => {
+    const now = new Date();
+    const alertTime = new Date(timestamp);
+    const diff = now.getTime() - alertTime.getTime();
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    return `${hours}h ${minutes}m ago`;
+};
+
 const AlertCard: React.FC<AlertCardProps> = ({
     alert,
     onDelete,
     onResolve,
     setMapCenter,
-    locationUpdates,
+    locationUpdates = [],
 }) => {
     const [showMap, setShowMap] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showResolveConfirm, setShowResolveConfirm] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [locationName, setLocationName] = useState<string>(
+        "Loading location..."
+    );
 
-    const getPriorityColor = (priority: string) => {
-        switch (priority) {
-            case "High":
-                return "danger";
-            case "Medium":
-                return "warning";
-            case "Low":
-                return "success";
-            default:
-                return "primary";
+    const fetchLocationName = useCallback(async () => {
+        try {
+            if (
+                alert.initialLocation &&
+                typeof alert.initialLocation.latitude === "number" &&
+                typeof alert.initialLocation.longitude === "number"
+            ) {
+                const lat = alert.initialLocation.latitude.toFixed(4);
+                const lng = alert.initialLocation.longitude.toFixed(4);
+                const locationString = `${lat}°N, ${lng}°E`;
+                setLocationName(locationString);
+            } else {
+                setLocationName("Location unavailable");
+            }
+        } catch (err) {
+            console.error("Error formatting location:", err);
+            setLocationName("Location unavailable");
         }
-    };
+    }, [alert.initialLocation]);
 
-    const getStatusColor = (status: string) => {
-        return status === "Active" ? "danger" : "success";
-    };
-
-    const getTimeElapsed = (timestamp: string) => {
-        const now = new Date();
-        const alertTime = new Date(timestamp);
-        const diff = now.getTime() - alertTime.getTime();
-        const hours = Math.floor(diff / 3600000);
-        const minutes = Math.floor((diff % 3600000) / 60000);
-        return `${hours}h ${minutes}m ago`;
-    };
+    useEffect(() => {
+        fetchLocationName();
+    }, [fetchLocationName]);
 
     const handleMapClick = () => {
-        setShowMap(!showMap);
-        setMapCenter(
-            [alert.initialLocation.latitude, alert.initialLocation.longitude],
-            16
-        );
+        if (
+            alert.initialLocation &&
+            typeof alert.initialLocation.latitude === "number" &&
+            typeof alert.initialLocation.longitude === "number"
+        ) {
+            setShowMap(!showMap);
+            setMapCenter(
+                [alert.initialLocation.latitude, alert.initialLocation.longitude],
+                16
+            );
+        }
     };
 
     const handleDelete = async () => {
@@ -93,147 +125,137 @@ const AlertCard: React.FC<AlertCardProps> = ({
     };
 
     return (
-        <Card
-            className="mb-4 shadow-lg hover:shadow-xl transition-shadow duration-200 border-l-4"
-            style={{
-                borderLeftColor: `var(--bs-${getPriorityColor(alert.priority)})`,
-            }}
-        >
+        <Card className="mb-6 shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl overflow-hidden">
             {error && (
                 <Alert variant="danger" onClose={() => setError(null)} dismissible>
                     {error}
                 </Alert>
             )}
 
-            {showMap && (
-                <MapView
-                    alerts={[alert]}
-                    center={[
-                        alert.initialLocation.latitude,
-                        alert.initialLocation.longitude,
-                    ]}
-                    zoom={16}
-                    onClose={() => setShowMap(false)}
+            <div className="relative">
+                <div
+                    className={`absolute top-0 left-0 w-2 h-full ${getPriorityColor(
+                        alert.priority
+                    )}`}
                 />
-            )}
 
-            <Card.Body className="p-0">
-                <div className="p-4">
-                    <div className="flex justify-between items-start mb-3">
-                        <div>
-                            <Card.Title className="text-2xl font-bold mb-1">
-                                {alert.type} Alert
-                            </Card.Title>
-                            <Badge
-                                bg={getStatusColor(alert.status)}
-                                className="mr-2 px-3 py-2 rounded-pill"
-                            >
-                                {alert.status}
-                            </Badge>
-                            <Badge
-                                bg={getPriorityColor(alert.priority)}
-                                className="px-3 py-2 rounded-pill"
-                            >
-                                {alert.priority} Priority
-                            </Badge>
+                <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 mb-2">
+                                <AlertTriangle
+                                    className={
+                                        alert.status === "Active"
+                                            ? "text-red-500"
+                                            : "text-green-500"
+                                    }
+                                />
+                                <h3 className="text-xl font-bold m-0">
+                                    {alert.type || "Unknown Alert Type"}
+                                </h3>
+                            </div>
+                            <div className="flex gap-2">
+                                <Badge
+                                    className={`${getStatusColor(
+                                        alert.status
+                                    )} text-white px-3 py-1`}
+                                >
+                                    {alert.status}
+                                </Badge>
+                                <Badge
+                                    className={`${getPriorityColor(
+                                        alert.priority
+                                    )} text-white px-3 py-1`}
+                                >
+                                    {alert.priority} Priority
+                                </Badge>
+                            </div>
                         </div>
-                        <Button
-                            variant="link"
-                            onClick={handleMapClick}
-                            className="text-primary"
-                        >
-                            <MapPin size={20} />
-                        </Button>
+                        {alert.initialLocation && (
+                            <Button
+                                variant="ghost"
+                                onClick={handleMapClick}
+                                className="text-blue-500 hover:text-blue-700"
+                            >
+                                <MapPin size={24} />
+                            </Button>
+                        )}
                     </div>
 
-                    <p className="text-gray-600 mb-3">{alert.description}</p>
+                    <p className="text-gray-600 mb-4">
+                        {alert.description || "No description provided"}
+                    </p>
 
-                    <div className="flex items-center text-sm text-gray-500 mb-3">
-                        <Clock size={16} className="mr-1" />
-                        <span>{getTimeElapsed(alert.timestamp)}</span>
-                        <User size={16} className="ml-4 mr-1" />
-                        <span>Initiator: {alert.initiatorName}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-center gap-2">
+                            <User className="text-gray-400" size={18} />
+                            <span className="font-medium">Initiator:</span>
+                            <span>{alert.initiatorName || "Unknown"}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Clock className="text-gray-400" size={18} />
+                            <span>{getTimeElapsed(alert.timestamp)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 col-span-2">
+                            <MapPin className="text-gray-400" size={18} />
+                            <span className="font-medium">Location:</span>
+                            <span className="text-gray-600">{locationName}</span>
+                        </div>
                     </div>
 
-                    <div className="mb-3">
-                        <p>
-                            <strong>Location:</strong> {alert.location}
-                        </p>
-                        <p>
-                            <strong>Coordinates:</strong>{" "}
-                            {alert.initialLocation.latitude.toFixed(6)},{" "}
-                            {alert.initialLocation.longitude.toFixed(6)}
-                        </p>
-                        <p>
-                            <strong>User ID:</strong> {alert.userId}
-                        </p>
-                    </div>
-
-                    {/* Location Updates Section */}
                     {locationUpdates && locationUpdates.length > 0 && (
-                        <div className="mt-4 p-3 bg-light rounded">
-                            <h6 className="font-weight-bold mb-3">Location Updates</h6>
-                            <div className="location-updates">
+                        <div className="mt-4 bg-gray-50 p-4 rounded-lg">
+                            <h6 className="font-semibold mb-3">Location Updates</h6>
+                            <div className="space-y-2">
                                 {locationUpdates.map((update, index) => (
                                     <div
                                         key={index}
-                                        className="update-item mb-2 p-2 border-bottom"
+                                        className="flex justify-between items-center p-2 bg-white rounded shadow-sm"
                                     >
-                                        <div className="d-flex justify-content-between align-items-center">
-                                            <span className="text-muted">
-                                                Update {index + 1} -{" "}
-                                                {update.timestamp.toLocaleTimeString()}
-                                            </span>
-                                            <Button
-                                                variant="outline-primary"
-                                                size="sm"
-                                                onClick={() =>
-                                                    setMapCenter(
-                                                        [update.latitude, update.longitude],
-                                                        16
-                                                    )
-                                                }
-                                            >
-                                                <MapPin size={14} className="mr-1" />
-                                                View
-                                            </Button>
-                                        </div>
-                                        <div className="mt-1">
-                                            <small>
-                                                Lat: {update.latitude.toFixed(6)}, Lon:{" "}
-                                                {update.longitude.toFixed(6)}
-                                            </small>
-                                        </div>
+                                        <span className="text-sm text-gray-600">
+                                            Update {index + 1} -{" "}
+                                            {update.timestamp.toLocaleTimeString()}
+                                        </span>
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            onClick={() =>
+                                                setMapCenter([update.latitude, update.longitude], 16)
+                                            }
+                                        >
+                                            <MapPin size={14} className="mr-1" />
+                                            View
+                                        </Button>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
-                </div>
 
-                <div className="bg-gray-100 p-4 rounded-b-lg">
-                    <div className="flex justify-between">
+                    <div className="flex gap-3 mt-4">
                         <Button
                             variant="outline-danger"
+                            className="flex-1 flex items-center justify-center gap-2"
                             onClick={() => setShowDeleteConfirm(true)}
                             disabled={loading}
-                            className="flex-1 mr-2 py-2"
                         >
-                            <Trash2 size={18} className="mr-2" /> Delete
+                            <Trash2 size={18} />
+                            Delete
                         </Button>
                         {alert.status === "Active" && (
                             <Button
                                 variant="outline-success"
+                                className="flex-1 flex items-center justify-center gap-2"
                                 onClick={() => setShowResolveConfirm(true)}
                                 disabled={loading}
-                                className="flex-1 py-2"
                             >
-                                <CheckCircle size={18} className="mr-2" /> Resolve
+                                <CheckCircle size={18} />
+                                Resolve
                             </Button>
                         )}
                     </div>
                 </div>
-            </Card.Body>
+            </div>
 
             {/* Delete Confirmation Modal */}
             <Modal
@@ -280,11 +302,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
                     >
                         Cancel
                     </Button>
-                    <Button
-                        variant="success"
-                        onClick={handleResolve}
-                        disabled={loading}
-                    >
+                    <Button variant="success" onClick={handleResolve} disabled={loading}>
                         {loading ? "Resolving..." : "Resolve"}
                     </Button>
                 </Modal.Footer>

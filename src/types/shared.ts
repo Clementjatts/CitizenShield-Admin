@@ -14,7 +14,6 @@ export interface Alert {
     type: string;
     location: string;
     initialLocation: {
-        // Changed to match mobile app structure
         latitude: number;
         longitude: number;
     };
@@ -22,9 +21,9 @@ export interface Alert {
     priority: "Low" | "Medium" | "High";
     timestamp: string;
     initiatorName: string;
-    userId: string; // Changed from initiatorUserId and type changed to string
+    userId: string;
     description: string;
-    resolvedAt?: Date; // Added to handle resolution timestamp
+    resolvedAt?: Date;
 }
 
 export interface EmergencyContact {

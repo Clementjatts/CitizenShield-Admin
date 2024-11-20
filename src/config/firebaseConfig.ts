@@ -10,7 +10,7 @@ const firebaseConfig = {
     storageBucket: "citizenshield-78464.appspot.com",
     messagingSenderId: "362496878607",
     appId: "1:362496878607:web:8070266a408db2e1591b7a",
-    measurementId: "G-404WETDQQY"
+    measurementId: "G-404WETDQQY",
 };
 
 // Initialize Firebase
