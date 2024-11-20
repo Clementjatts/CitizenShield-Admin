@@ -1,13 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button, OverlayTrigger, Tooltip, Form } from "react-bootstrap";
 import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl, Circle } from "react-leaflet";
-import { Share2, Crosshair, Map as MapIcon, AlertTriangle } from "lucide-react";
+import { Share2, Crosshair, Map as MapIcon, AlertTriangle, Filter } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { Alert } from "../../types/shared";
-import { db } from "../../config/firebaseConfig";
-import { collection, query, where, onSnapshot, DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
-import { handleFirebaseError } from "../../utils/errorHandler";
 
 // Custom marker icons
 const createCustomIcon = (color: string) =>
@@ -24,6 +21,19 @@ const createCustomIcon = (color: string) =>
 const activeIcon = createCustomIcon("red");
 const resolvedIcon = createCustomIcon("green");
 
+const getPriorityColor = (priority: string): string => {
+    switch (priority.toLowerCase()) {
+        case "high":
+            return "#ef4444"; // red-500
+        case "medium":
+            return "#f59e0b"; // amber-500
+        case "low":
+            return "#22c55e"; // green-500
+        default:
+            return "#3b82f6"; // blue-500
+    }
+};
+
 interface MapViewProps {
     alerts: Alert[];
     center: [number, number];
@@ -31,97 +41,53 @@ interface MapViewProps {
     onClose: () => void;
 }
 
-// Helper function to convert Firestore document to Alert type
-const convertDocToAlert = (doc: QueryDocumentSnapshot<DocumentData>): Alert => {
-    const data = doc.data();
-    return {
-        id: doc.id,
-        type: data.type || "",
-        location: data.location || "",
-        initialLocation: {
-            latitude: data.initialLocation?.latitude || 0,
-            longitude: data.initialLocation?.longitude || 0,
-        },
-        status: data.status as "Active" | "Resolved",
-        priority: data.priority as "Low" | "Medium" | "High",
-        timestamp:
-            data.timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
-        initiatorName: data.initiatorName || "",
-        userId: data.userId || "",
-    };
-};
-
 const MapView = React.forwardRef<any, MapViewProps>(
     ({ alerts, center, zoom, onClose }, ref) => {
         const [isEarthView, setIsEarthView] = useState(false);
         const [showHeatmap, setShowHeatmap] = useState(false);
-        const [filterPriority, setFilterPriority] = useState<string>("All");
-        const [filterStatus, setFilterStatus] = useState<string>("All");
-        const [liveAlerts, setLiveAlerts] = useState<Alert[]>(alerts);
-        const [error, setError] = useState<string | null>(null);
+        const [showFilters, setShowFilters] = useState(false);
+        const [filterPriority, setFilterPriority] = useState<string>("all");
+        const [filterStatus, setFilterStatus] = useState<string>("all");
+        const [filteredAlerts, setFilteredAlerts] = useState<Alert[]>(alerts);
         const mapRef = useRef<L.Map | null>(null);
 
         useEffect(() => {
-            // Create query based on filters
-            let q = query(collection(db, "emergencies"));
-
-            if (filterStatus !== "All") {
-                q = query(q, where("status", "==", filterStatus));
-            }
-
-            const unsubscribe = onSnapshot(
-                q,
-                (snapshot) => {
-                    try {
-                        const alertsList = snapshot.docs
-                            .map(convertDocToAlert)
-                            .filter(
-                                (alert) =>
-                                    filterPriority === "All" || alert.priority === filterPriority
-                            );
-                        setLiveAlerts(alertsList);
-                    } catch (err) {
-                        console.error("Error processing alert data:", err);
-                        setError(handleFirebaseError(err));
-                    }
-                },
-                (error) => {
-                    console.error("Snapshot error:", error);
-                    setError(handleFirebaseError(error));
-                }
-            );
-
-            return () => unsubscribe();
-        }, [filterStatus, filterPriority]);
+            // Apply filters whenever alerts or filter settings change
+            const filtered = alerts.filter((alert) => {
+                const matchesPriority =
+                    filterPriority === "all" ||
+                    alert.priority.toLowerCase() === filterPriority;
+                const matchesStatus =
+                    filterStatus === "all" || alert.status.toLowerCase() === filterStatus;
+                return matchesPriority && matchesStatus;
+            });
+            setFilteredAlerts(filtered);
+        }, [alerts, filterPriority, filterStatus]);
 
         const MapHandler = () => {
             const map = useMap();
             mapRef.current = map;
+
             React.useImperativeHandle(ref, () => ({
                 flyTo: (center: [number, number], zoom: number) => {
                     map.flyTo(center, zoom, { duration: 0.5 });
                 },
             }));
+
             return null;
         };
 
-        const toggleView = () => setIsEarthView(!isEarthView);
-        const toggleHeatmap = () => setShowHeatmap(!showHeatmap);
+        const handleShare = async () => {
+            if (!mapRef.current) return;
 
-        const handleShare = () => {
-            if (mapRef.current) {
+            try {
                 const center = mapRef.current.getCenter();
                 const zoom = mapRef.current.getZoom();
                 const shareUrl = `https://www.google.com/maps/@${center.lat},${center.lng},${zoom}z`;
-                navigator.clipboard
-                    .writeText(shareUrl)
-                    .then(() => {
-                        alert("Map location copied to clipboard!");
-                    })
-                    .catch((err) => {
-                        console.error("Failed to copy:", err);
-                        setError("Failed to copy location to clipboard");
-                    });
+                await navigator.clipboard.writeText(shareUrl);
+                alert("Map location copied to clipboard!");
+            } catch (err) {
+                console.error("Failed to copy location:", err);
             }
         };
 
@@ -131,25 +97,69 @@ const MapView = React.forwardRef<any, MapViewProps>(
             }
         };
 
-        const filteredAlerts = liveAlerts.filter(
-            (alert) =>
-                (filterPriority === "All" || alert.priority === filterPriority) &&
-                (filterStatus === "All" || alert.status === filterStatus)
-        );
+        const formatDate = (timestamp: string) => {
+            return new Date(timestamp).toLocaleString();
+        };
 
         return (
             <div className="fixed inset-0 z-50 bg-white">
-                {error && (
-                    <div className="absolute top-4 left-4 right-4 z-50">
-                        <div
-                            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"
-                            role="alert"
+                {/* Header Controls */}
+                <div className="absolute top-4 left-4 right-4 z-[1000] flex justify-between items-center">
+                    <Button variant="secondary" onClick={onClose} className="shadow-lg">
+                        Close Map
+                    </Button>
+
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="light"
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="shadow-lg"
                         >
-                            <strong className="font-bold">Error: </strong>
-                            <span className="block sm:inline">{error}</span>
+                            <Filter size={20} />
+                        </Button>
+                        <div className="bg-white rounded-lg shadow-lg p-2">
+                            <span className="text-sm font-medium">
+                                Showing {filteredAlerts.length} alerts
+                            </span>
                         </div>
                     </div>
+                </div>
+
+                {/* Filters Panel */}
+                {showFilters && (
+                    <div className="absolute top-20 left-4 bg-white p-4 rounded-lg shadow-lg z-[1000] min-w-[250px]">
+                        <h4 className="text-lg font-semibold mb-4">Filters</h4>
+                        <Form.Group className="mb-3">
+                            <Form.Label className="font-medium">Priority</Form.Label>
+                            <Form.Select
+                                size="sm"
+                                value={filterPriority}
+                                onChange={(e) => setFilterPriority(e.target.value)}
+                                className="w-full"
+                            >
+                                <option value="all">All Priorities</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </Form.Select>
+                        </Form.Group>
+
+                        <Form.Group>
+                            <Form.Label className="font-medium">Status</Form.Label>
+                            <Form.Select
+                                size="sm"
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                                className="w-full"
+                            >
+                                <option value="all">All Statuses</option>
+                                <option value="active">Active</option>
+                                <option value="resolved">Resolved</option>
+                            </Form.Select>
+                        </Form.Group>
+                    </div>
                 )}
+
                 <MapContainer
                     center={center}
                     zoom={zoom}
@@ -157,6 +167,7 @@ const MapView = React.forwardRef<any, MapViewProps>(
                     zoomControl={false}
                     ref={mapRef}
                 >
+                    {/* Base Layer */}
                     {isEarthView ? (
                         <TileLayer
                             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -169,6 +180,7 @@ const MapView = React.forwardRef<any, MapViewProps>(
                         />
                     )}
 
+                    {/* Alert Markers */}
                     {filteredAlerts.map((alert) => (
                         <React.Fragment key={alert.id}>
                             <Marker
@@ -180,44 +192,51 @@ const MapView = React.forwardRef<any, MapViewProps>(
                             >
                                 <Popup>
                                     <div className="popup-content">
-                                        <h3
-                                            className={`text-${alert.status === "Active" ? "red" : "green"
-                                                }-500 font-bold mb-2`}
-                                        >
-                                            {alert.type}
-                                        </h3>
-                                        <p className="mb-1">
-                                            <strong>Location:</strong> {alert.location}
-                                        </p>
-                                        <p className="mb-1">
-                                            <strong>Status:</strong>{" "}
-                                            <span
-                                                className={`text-${alert.status === "Active" ? "red" : "green"
-                                                    }-500`}
-                                            >
-                                                {alert.status}
-                                            </span>
-                                        </p>
-                                        <p className="mb-1">
-                                            <strong>Priority:</strong>{" "}
-                                            <span
-                                                className={`text-${alert.priority === "High"
-                                                        ? "red"
-                                                        : alert.priority === "Medium"
-                                                            ? "yellow"
-                                                            : "green"
-                                                    }-500`}
-                                            >
-                                                {alert.priority}
-                                            </span>
-                                        </p>
-                                        <p className="mb-1">
-                                            <strong>Time:</strong>{" "}
-                                            {new Date(alert.timestamp).toLocaleString()}
-                                        </p>
-                                        <p className="mb-1">
-                                            <strong>Initiator:</strong> {alert.initiatorName}
-                                        </p>                                    
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <AlertTriangle
+                                                size={20}
+                                                className={
+                                                    alert.status === "Active"
+                                                        ? "text-red-500"
+                                                        : "text-green-500"
+                                                }
+                                            />
+                                            <h3 className="text-lg font-semibold m-0">
+                                                {alert.type}
+                                            </h3>
+                                        </div>
+
+                                        <div className="grid gap-2 text-sm">
+                                            <p>
+                                                <strong>Location:</strong> {alert.location}
+                                            </p>
+                                            <p>
+                                                <strong>Status:</strong>{" "}
+                                                <span
+                                                    className={`${alert.status === "Active"
+                                                            ? "text-red-500"
+                                                            : "text-green-500"
+                                                        } font-medium`}
+                                                >
+                                                    {alert.status}
+                                                </span>
+                                            </p>
+                                            <p>
+                                                <strong>Priority:</strong>{" "}
+                                                <span
+                                                    className="font-medium"
+                                                    style={{ color: getPriorityColor(alert.priority) }}
+                                                >
+                                                    {alert.priority}
+                                                </span>
+                                            </p>
+                                            <p>
+                                                <strong>Reported:</strong> {formatDate(alert.timestamp)}
+                                            </p>
+                                            <p>
+                                                <strong>Initiator:</strong> {alert.initiatorName}
+                                            </p>
+                                        </div>
                                     </div>
                                 </Popup>
                             </Marker>
@@ -229,7 +248,7 @@ const MapView = React.forwardRef<any, MapViewProps>(
                                         alert.initialLocation.longitude,
                                     ]}
                                     pathOptions={{
-                                        fillColor: "red",
+                                        fillColor: getPriorityColor(alert.priority),
                                         fillOpacity: 0.2,
                                         color: "transparent",
                                     }}
@@ -239,38 +258,6 @@ const MapView = React.forwardRef<any, MapViewProps>(
                         </React.Fragment>
                     ))}
 
-                    {/* Filter Controls */}
-                    <div className="absolute top-20 left-4 bg-white p-4 rounded-lg shadow-lg z-[1000]">
-                        <Form.Group className="mb-3">
-                            <Form.Label className="font-semibold">Priority</Form.Label>
-                            <Form.Select
-                                size="sm"
-                                value={filterPriority}
-                                onChange={(e) => setFilterPriority(e.target.value)}
-                                className="w-full"
-                            >
-                                <option value="All">All</option>
-                                <option value="Low">Low</option>
-                                <option value="Medium">Medium</option>
-                                <option value="High">High</option>
-                            </Form.Select>
-                        </Form.Group>
-
-                        <Form.Group>
-                            <Form.Label className="font-semibold">Status</Form.Label>
-                            <Form.Select
-                                size="sm"
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
-                                className="w-full"
-                            >
-                                <option value="All">All</option>
-                                <option value="Active">Active</option>
-                                <option value="Resolved">Resolved</option>
-                            </Form.Select>
-                        </Form.Group>
-                    </div>
-
                     {/* Map Controls */}
                     <div className="absolute bottom-32 right-4 flex flex-col gap-2">
                         <OverlayTrigger
@@ -279,13 +266,13 @@ const MapView = React.forwardRef<any, MapViewProps>(
                                 <Tooltip id="toggle-view-tooltip">
                                     {isEarthView
                                         ? "Switch to Street View"
-                                        : "Switch to Earth View"}
+                                        : "Switch to Satellite View"}
                                 </Tooltip>
                             }
                         >
                             <Button
                                 variant="light"
-                                onClick={toggleView}
+                                onClick={() => setIsEarthView(!isEarthView)}
                                 className="shadow-lg"
                             >
                                 <MapIcon size={20} />
@@ -296,13 +283,13 @@ const MapView = React.forwardRef<any, MapViewProps>(
                             placement="left"
                             overlay={
                                 <Tooltip id="heatmap-tooltip">
-                                    {showHeatmap ? "Hide Heatmap" : "Show Heatmap"}
+                                    {showHeatmap ? "Hide Impact Zones" : "Show Impact Zones"}
                                 </Tooltip>
                             }
                         >
                             <Button
                                 variant="light"
-                                onClick={toggleHeatmap}
+                                onClick={() => setShowHeatmap(!showHeatmap)}
                                 className="shadow-lg"
                             >
                                 <AlertTriangle size={20} />
@@ -339,15 +326,6 @@ const MapView = React.forwardRef<any, MapViewProps>(
                     <ZoomControl position="bottomright" />
                     <MapHandler />
                 </MapContainer>
-
-                {/* Close Button */}
-                <Button
-                    variant="secondary"
-                    onClick={onClose}
-                    className="absolute top-4 left-4 z-[1000] shadow-lg"
-                >
-                    Close Map
-                </Button>
             </div>
         );
     }

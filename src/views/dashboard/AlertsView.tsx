@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import AlertCard from "../../components/cards/AlertCard";
 import MapView from "../../components/map/MapView";
 import { Alert } from "../../types/shared";
 import { db } from "../../config/firebaseConfig";
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, Timestamp, getDoc, DocumentData, where, QueryDocumentSnapshot } from "firebase/firestore";
-import { Alert as BootstrapAlert, Tabs, Tab } from "react-bootstrap";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDoc, where, DocumentData, QueryDocumentSnapshot, Timestamp } from "firebase/firestore";
+import { Alert as BootstrapAlert, Tabs, Tab, Form, InputGroup, Button, Dropdown } from "react-bootstrap";
+import { Search, AlertTriangle, Filter, ArrowUpDown, MapPin, Check, XCircle } from "lucide-react";
 import { handleFirebaseError } from "../../utils/errorHandler";
+import { getAddressFromCoordinates } from "../../utils/locationUtils";
 
 interface AlertViewProps {
     searchTerm: string;
@@ -16,25 +18,51 @@ interface UserData extends DocumentData {
     name?: string;
 }
 
-// Convert Firestore document to Alert type with default values
-const convertDocToAlert = (doc: QueryDocumentSnapshot<DocumentData>): Alert => {
+const convertDocToAlert = async (doc: QueryDocumentSnapshot<DocumentData>): Promise<Alert> => {
     const data = doc.data();
+    const initialLocation = {
+        latitude: data.initialLocation?.latitude || 0,
+        longitude: data.initialLocation?.longitude || 0,
+    };
+
+    let address = "No location provided";
+    try {
+        if (data.address) {
+            address = data.address;
+        } else if (initialLocation.latitude && initialLocation.longitude) {
+            address = await getAddressFromCoordinates(
+                initialLocation.latitude,
+                initialLocation.longitude
+            );
+            
+            if (address !== "Unknown location") {
+                try {
+                    await updateDoc(doc.ref, { address });
+                } catch (error) {
+                    console.error("Error storing address:", error);
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error processing address:", error);
+    }
+
     return {
         id: doc.id,
         type: data.type || "Unknown",
-        location: data.location || "Unknown Location",
-        initialLocation: {
-            latitude: data.initialLocation?.latitude || 0,
-            longitude: data.initialLocation?.longitude || 0,
-        },
-        status: (data.status as "Active" | "Resolved") || "Active",
+        location: address,
+        initialLocation,
+        status: (data.status?.toString().toLowerCase() === "active"
+            ? "Active"
+            : "Resolved") as "Active" | "Resolved",
         priority: (data.priority as "Low" | "Medium" | "High") || "Medium",
         timestamp:
             data.timestamp instanceof Timestamp
                 ? data.timestamp.toDate().toISOString()
                 : new Date().toISOString(),
-        initiatorName: data.initiatorName || "Unknown",
+        initiatorName: data.initiatorName || "Anonymous",
         userId: data.userId || "",
+        resolvedAt: data.resolvedAt?.toDate() || undefined,
     };
 };
 
@@ -46,27 +74,27 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
     const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
     const [mapZoom, setMapZoom] = useState(16);
     const [activeTab, setActiveTab] = useState<string>("active");
+    const [filterPriority, setFilterPriority] = useState<string>("all");
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+    const mapRef = useRef(null);
 
     useEffect(() => {
-        console.log("Fetching alerts...");
         const alertsRef = collection(db, "emergencies");
         const q = query(
             alertsRef,
             where("status", "==", activeTab === "active" ? "active" : "resolved"),
-            orderBy("timestamp", "desc")
+            orderBy("timestamp", sortOrder)
         );
 
         const unsubscribe = onSnapshot(
             q,
             async (snapshot) => {
-                console.log("Snapshot received:", snapshot.docs.length, "documents");
                 try {
                     const alertsPromises = snapshot.docs.map(async (docSnapshot) => {
                         const data = docSnapshot.data();
-                        console.log("Processing document:", docSnapshot.id, data);
 
-                        // Fetch user data for the initiator
-                        let initiatorName = "Unknown";
+                        // Fetch user data for initiator
+                        let initiatorName = "Anonymous";
                         if (data.userId) {
                             try {
                                 const userDocRef = doc(db, "users", data.userId);
@@ -75,27 +103,31 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
                                 if (userDocSnap.exists()) {
                                     const userData = userDocSnap.data() as UserData;
                                     initiatorName =
-                                        userData.fullName || userData.name || "Unknown";
+                                        userData.fullName || userData.name || "Anonymous";
                                 }
                             } catch (error) {
                                 console.error("Error fetching user data:", error);
                             }
                         }
 
-                        // Convert document to Alert type with proper error handling
-                        const alert = convertDocToAlert(docSnapshot);
+                        const alert = await convertDocToAlert(docSnapshot);
                         alert.initiatorName = initiatorName;
                         return alert;
                     });
 
                     const resolvedAlerts = await Promise.all(alertsPromises);
-                    console.log("Processed alerts:", resolvedAlerts);
-                    setAlerts(resolvedAlerts);
+                    const filteredAlerts = resolvedAlerts.filter((alert) => {
+                        const priorityMatch =
+                            filterPriority === "all" ||
+                            alert.priority.toLowerCase() === filterPriority.toLowerCase();
+                        return priorityMatch;
+                    });
+
+                    setAlerts(filteredAlerts);
                     setLoading(false);
                 } catch (err) {
                     console.error("Error processing alerts:", err);
-                    const errorMessage = handleFirebaseError(err);
-                    setError(errorMessage);
+                    setError(handleFirebaseError(err));
                     setLoading(false);
                 }
             },
@@ -107,7 +139,7 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
         );
 
         return () => unsubscribe();
-    }, [activeTab]);
+    }, [activeTab, filterPriority, sortOrder]);
 
     const handleDeleteAlert = async (id: string) => {
         try {
@@ -140,18 +172,24 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
         setShowMap(true);
     };
 
-    const filteredAlerts = alerts.filter(
-        (alert) =>
-            alert.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            alert.location.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredAlerts = alerts.filter((alert) => {
+        const searchText = (searchTerm || "").toLowerCase();
+        return (
+            alert.type.toLowerCase().includes(searchText) ||
+            alert.location.toLowerCase().includes(searchText) ||
+            alert.initiatorName.toLowerCase().includes(searchText)
+        );
+    });
+
+    const getActiveCount = () =>
+        alerts.filter((a) => a.status === "Active").length;
+    const getResolvedCount = () =>
+        alerts.filter((a) => a.status === "Resolved").length;
 
     if (loading) {
         return (
             <div className="flex justify-center items-center p-8">
-                <div className="spinner-border text-primary" role="status">
-                    <span className="sr-only">Loading...</span>
-                </div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
             </div>
         );
     }
@@ -164,6 +202,7 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
                     center={mapCenter}
                     zoom={mapZoom}
                     onClose={() => setShowMap(false)}
+                    ref={mapRef}
                 />
             ) : (
                 <>
@@ -178,72 +217,144 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
                         </BootstrapAlert>
                     )}
 
-                    <Tabs
-                        activeKey={activeTab}
-                        onSelect={(k) => setActiveTab(k || "active")}
-                        className="mb-4"
-                    >
-                        <Tab
-                            eventKey="active"
-                            title={
-                                <div className="flex items-center gap-2 p-2">
-                                    <span className="h-3 w-3 rounded-full bg-red-500"></span>
-                                    Active Alerts (
-                                    {alerts.filter((a) => a.status === "Active").length})
-                                </div>
-                            }
-                        >
-                            <div className="mt-4">
-                                {filteredAlerts.length === 0 ? (
-                                    <div className="text-center p-8 bg-gray-50 rounded-lg">
-                                        <p className="text-gray-500 text-lg">
-                                            No active alerts found
-                                        </p>
-                                    </div>
-                                ) : (
-                                    filteredAlerts.map((alert) => (
-                                        <AlertCard
-                                            key={alert.id}
-                                            alert={alert}
-                                            onDelete={handleDeleteAlert}
-                                            onResolve={handleResolveAlert}
-                                            setMapCenter={handleSetMapCenter}
-                                        />
-                                    ))
-                                )}
+                    {/* Controls Section */}
+                    <div className="mb-6 bg-white rounded-xl shadow-md p-4">
+                        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4">
+                            {/* Search */}
+                            <InputGroup className="max-w-md">
+                                <InputGroup.Text className="bg-white border-r-0">
+                                    <Search size={18} className="text-gray-400" />
+                                </InputGroup.Text>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="Search alerts..."
+                                    value={searchTerm}
+                                    onChange={(e) => (searchTerm = e.target.value)}
+                                    className="border-l-0"
+                                />
+                            </InputGroup>
+
+                            {/* Filters */}
+                            <div className="flex gap-3">
+                                <Dropdown>
+                                    <Dropdown.Toggle
+                                        variant="light"
+                                        className="flex items-center gap-2"
+                                    >
+                                        <Filter size={18} />
+                                        Priority:{" "}
+                                        {filterPriority === "all" ? "All" : filterPriority}
+                                    </Dropdown.Toggle>
+                                    <Dropdown.Menu>
+                                        <Dropdown.Item
+                                            active={filterPriority === "all"}
+                                            onClick={() => setFilterPriority("all")}
+                                        >
+                                            All
+                                        </Dropdown.Item>
+                                        <Dropdown.Item
+                                            active={filterPriority === "high"}
+                                            onClick={() => setFilterPriority("high")}
+                                            className="text-red-600"
+                                        >
+                                            High
+                                        </Dropdown.Item>
+                                        <Dropdown.Item
+                                            active={filterPriority === "medium"}
+                                            onClick={() => setFilterPriority("medium")}
+                                            className="text-amber-500"
+                                        >
+                                            Medium
+                                        </Dropdown.Item>
+                                        <Dropdown.Item
+                                            active={filterPriority === "low"}
+                                            onClick={() => setFilterPriority("low")}
+                                            className="text-green-600"
+                                        >
+                                            Low
+                                        </Dropdown.Item>
+                                    </Dropdown.Menu>
+                                </Dropdown>
+
+                                <Button
+                                    variant="light"
+                                    onClick={() =>
+                                        setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                                    }
+                                    className="flex items-center gap-2"
+                                >
+                                    <ArrowUpDown size={18} />
+                                    {sortOrder === "asc" ? "Oldest" : "Newest"} First
+                                </Button>
+
+                                <Button
+                                    variant="primary"
+                                    onClick={() => setShowMap(true)}
+                                    className="flex items-center gap-2"
+                                >
+                                    <MapPin size={18} />
+                                    View Map
+                                </Button>
                             </div>
-                        </Tab>
-                        <Tab
-                            eventKey="resolved"
-                            title={
-                                <div className="flex items-center gap-2 p-2">
-                                    <span className="h-3 w-3 rounded-full bg-green-500"></span>
-                                    Resolved Alerts (
-                                    {alerts.filter((a) => a.status === "Resolved").length})
-                                </div>
-                            }
+                        </div>
+
+                        {/* Tabs */}
+                        <Tabs
+                            activeKey={activeTab}
+                            onSelect={(k) => setActiveTab(k || "active")}
+                            className="mb-0"
                         >
-                            <div className="mt-4">
-                                {filteredAlerts.length === 0 ? (
-                                    <div className="text-center p-8 bg-gray-50 rounded-lg">
-                                        <p className="text-gray-500 text-lg">
-                                            No resolved alerts found
-                                        </p>
+                            <Tab
+                                eventKey="active"
+                                title={
+                                    <div className="flex items-center gap-2 p-2">
+                                        <AlertTriangle size={18} className="text-red-500" />
+                                        <span>Active Alerts</span>
+                                        <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-sm">
+                                            {getActiveCount()}
+                                        </span>
                                     </div>
-                                ) : (
-                                    filteredAlerts.map((alert) => (
-                                        <AlertCard
-                                            key={alert.id}
-                                            alert={alert}
-                                            onDelete={handleDeleteAlert}
-                                            onResolve={handleResolveAlert}
-                                            setMapCenter={handleSetMapCenter}
-                                        />
-                                    ))
-                                )}
+                                }
+                            />
+                            <Tab
+                                eventKey="resolved"
+                                title={
+                                    <div className="flex items-center gap-2 p-2">
+                                        <Check size={18} className="text-green-500" />
+                                        <span>Resolved</span>
+                                        <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded-full text-sm">
+                                            {getResolvedCount()}
+                                        </span>
+                                    </div>
+                                }
+                            />
+                        </Tabs>
+                    </div>
+
+                    {/* Alerts Grid */}
+                    <div className="space-y-6">
+                        {filteredAlerts.length === 0 ? (
+                            <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-200">
+                                <XCircle size={48} className="mx-auto mb-4 text-gray-400" />
+                                <p className="text-gray-600 text-lg mb-2">No alerts found</p>
+                                <p className="text-gray-500">
+                                    {searchTerm
+                                        ? "Try adjusting your search or filters"
+                                        : `No ${activeTab} alerts at the moment`}
+                                </p>
                             </div>
-                        </Tab>
-                    </Tabs>
+                        ) : (
+                            filteredAlerts.map((alert) => (
+                                <AlertCard
+                                    key={alert.id}
+                                    alert={alert}
+                                    onDelete={handleDeleteAlert}
+                                    onResolve={handleResolveAlert}
+                                    setMapCenter={handleSetMapCenter}
+                                />
+                            ))
+                        )}
+                    </div>
                 </>
             )}
         </div>
