@@ -22,7 +22,6 @@ export interface Alert {
     timestamp: string;
     initiatorName: string;
     userId: string;
-    description: string;
     resolvedAt?: Date;
 }
 

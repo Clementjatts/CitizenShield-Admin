@@ -35,7 +35,6 @@ const convertDocToAlert = (doc: QueryDocumentSnapshot<DocumentData>): Alert => {
                 : new Date().toISOString(),
         initiatorName: data.initiatorName || "Unknown",
         userId: data.userId || "",
-        description: data.description || "",
     };
 };
 
@@ -144,8 +143,7 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
     const filteredAlerts = alerts.filter(
         (alert) =>
             alert.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            alert.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            alert.description.toLowerCase().includes(searchTerm.toLowerCase())
+            alert.location.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     if (loading) {

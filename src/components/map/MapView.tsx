@@ -48,7 +48,6 @@ const convertDocToAlert = (doc: QueryDocumentSnapshot<DocumentData>): Alert => {
             data.timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
         initiatorName: data.initiatorName || "",
         userId: data.userId || "",
-        description: data.description || "",
     };
 };
 
@@ -218,10 +217,7 @@ const MapView = React.forwardRef<any, MapViewProps>(
                                         </p>
                                         <p className="mb-1">
                                             <strong>Initiator:</strong> {alert.initiatorName}
-                                        </p>
-                                        {alert.description && (
-                                            <p className="mt-2 text-gray-600">{alert.description}</p>
-                                        )}
+                                        </p>                                    
                                     </div>
                                 </Popup>
                             </Marker>

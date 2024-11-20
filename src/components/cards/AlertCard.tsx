@@ -183,10 +183,6 @@ const AlertCard: React.FC<AlertCardProps> = ({
                         )}
                     </div>
 
-                    <p className="text-gray-600 mb-4">
-                        {alert.description || "No description provided"}
-                    </p>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div className="flex items-center gap-2">
                             <User className="text-gray-400" size={18} />
