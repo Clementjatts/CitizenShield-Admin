@@ -10,7 +10,7 @@ export interface Notification {
 }
 
 export interface Alert {
-    id: number;
+    id: string;
     type: string;
     location: string;
     initialLocation: {

@@ -12,8 +12,8 @@ interface LocationUpdate {
 
 interface AlertCardProps {
     alert: AlertType;
-    onDelete: (id: number) => void;
-    onResolve: (id: number) => void;
+    onDelete: (id: string) => Promise<void>;
+    onResolve: (id: string) => Promise<void>;
     setMapCenter: (coords: [number, number], zoom: number) => void;
     locationUpdates?: LocationUpdate[];
 }
@@ -149,6 +149,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
                                             ? "text-red-500"
                                             : "text-green-500"
                                     }
+                                    size={24}
                                 />
                                 <h3 className="text-xl font-bold m-0">
                                     {alert.type || "Unknown Alert Type"}
@@ -158,14 +159,14 @@ const AlertCard: React.FC<AlertCardProps> = ({
                                 <Badge
                                     className={`${getStatusColor(
                                         alert.status
-                                    )} text-white px-3 py-1`}
+                                    )} text-white px-3 py-1 rounded-full`}
                                 >
                                     {alert.status}
                                 </Badge>
                                 <Badge
                                     className={`${getPriorityColor(
                                         alert.priority
-                                    )} text-white px-3 py-1`}
+                                    )} text-white px-3 py-1 rounded-full`}
                                 >
                                     {alert.priority} Priority
                                 </Badge>

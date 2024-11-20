@@ -20,7 +20,7 @@ interface UserData extends DocumentData {
 const convertDocToAlert = (doc: QueryDocumentSnapshot<DocumentData>): Alert => {
     const data = doc.data();
     return {
-        id: parseInt(doc.id, 10),
+        id: doc.id,
         type: data.type || "Unknown",
         location: data.location || "Unknown Location",
         initialLocation: {
@@ -49,8 +49,8 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
     const [activeTab, setActiveTab] = useState<string>("active");
 
     useEffect(() => {
+        console.log("Fetching alerts...");
         const alertsRef = collection(db, "emergencies");
-        // Query alerts based on active tab
         const q = query(
             alertsRef,
             where("status", "==", activeTab === "active" ? "Active" : "Resolved"),
@@ -60,9 +60,11 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
         const unsubscribe = onSnapshot(
             q,
             async (snapshot) => {
+                console.log("Snapshot received:", snapshot.docs.length, "documents");
                 try {
                     const alertsPromises = snapshot.docs.map(async (docSnapshot) => {
                         const data = docSnapshot.data();
+                        console.log("Processing document:", docSnapshot.id, data);
 
                         // Fetch user data for the initiator
                         let initiatorName = "Unknown";
@@ -88,16 +90,18 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
                     });
 
                     const resolvedAlerts = await Promise.all(alertsPromises);
+                    console.log("Processed alerts:", resolvedAlerts);
                     setAlerts(resolvedAlerts);
                     setLoading(false);
                 } catch (err) {
+                    console.error("Error processing alerts:", err);
                     const errorMessage = handleFirebaseError(err);
                     setError(errorMessage);
                     setLoading(false);
                 }
             },
             (error) => {
-                console.error("Error in alerts subscription:", error);
+                console.error("Snapshot error:", error);
                 setError(handleFirebaseError(error));
                 setLoading(false);
             }
@@ -106,25 +110,27 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
         return () => unsubscribe();
     }, [activeTab]);
 
-    const handleDeleteAlert = async (id: number) => {
+    const handleDeleteAlert = async (id: string) => {
         try {
-            const alertsRef = collection(db, "emergencies");
-            const alertRef = doc(alertsRef, id.toString());
+            const alertRef = doc(db, "emergencies", id);
             await deleteDoc(alertRef);
+            console.log("Alert deleted successfully:", id);
         } catch (err) {
+            console.error("Error deleting alert:", err);
             setError(handleFirebaseError(err));
         }
     };
 
-    const handleResolveAlert = async (id: number) => {
+    const handleResolveAlert = async (id: string) => {
         try {
-            const alertsRef = collection(db, "emergencies");
-            const alertRef = doc(alertsRef, id.toString());
+            const alertRef = doc(db, "emergencies", id);
             await updateDoc(alertRef, {
                 status: "Resolved",
                 resolvedAt: new Date(),
             });
+            console.log("Alert resolved successfully:", id);
         } catch (err) {
+            console.error("Error resolving alert:", err);
             setError(handleFirebaseError(err));
         }
     };

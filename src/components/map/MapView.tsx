@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { Alert } from "../../types/shared";
 import { db } from "../../config/firebaseConfig";
-import { collection, query, where, onSnapshot, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
+import { collection, query, where, onSnapshot, DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { handleFirebaseError } from "../../utils/errorHandler";
 
 // Custom marker icons
@@ -35,7 +35,7 @@ interface MapViewProps {
 const convertDocToAlert = (doc: QueryDocumentSnapshot<DocumentData>): Alert => {
     const data = doc.data();
     return {
-        id: parseInt(doc.id, 10),
+        id: doc.id,
         type: data.type || "",
         location: data.location || "",
         initialLocation: {
@@ -82,12 +82,12 @@ const MapView = React.forwardRef<any, MapViewProps>(
                             );
                         setLiveAlerts(alertsList);
                     } catch (err) {
-                        setError(
-                            "Error processing alert data: " + handleFirebaseError(err)
-                        );
+                        console.error("Error processing alert data:", err);
+                        setError(handleFirebaseError(err));
                     }
                 },
                 (error) => {
+                    console.error("Snapshot error:", error);
                     setError(handleFirebaseError(error));
                 }
             );
@@ -121,6 +121,7 @@ const MapView = React.forwardRef<any, MapViewProps>(
                     })
                     .catch((err) => {
                         console.error("Failed to copy:", err);
+                        setError("Failed to copy location to clipboard");
                     });
             }
         };
@@ -139,23 +140,21 @@ const MapView = React.forwardRef<any, MapViewProps>(
 
         return (
             <div className="fixed inset-0 z-50 bg-white">
-                {" "}
-                {/* Changed to fixed positioning */}
                 {error && (
-                    <div
-                        className="alert alert-danger absolute top-4 left-4 right-4"
-                        role="alert"
-                    >
-                        {error}
+                    <div className="absolute top-4 left-4 right-4 z-50">
+                        <div
+                            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"
+                            role="alert"
+                        >
+                            <strong className="font-bold">Error: </strong>
+                            <span className="block sm:inline">{error}</span>
+                        </div>
                     </div>
                 )}
                 <MapContainer
                     center={center}
                     zoom={zoom}
-                    style={{
-                        height: "100vh",
-                        width: "100%",
-                    }}
+                    style={{ height: "100vh", width: "100%" }}
                     zoomControl={false}
                     ref={mapRef}
                 >
@@ -183,27 +182,46 @@ const MapView = React.forwardRef<any, MapViewProps>(
                                 <Popup>
                                     <div className="popup-content">
                                         <h3
-                                            className={`text-${alert.status === "Active" ? "danger" : "success"
-                                                }`}
+                                            className={`text-${alert.status === "Active" ? "red" : "green"
+                                                }-500 font-bold mb-2`}
                                         >
                                             {alert.type}
                                         </h3>
-                                        <p>
+                                        <p className="mb-1">
                                             <strong>Location:</strong> {alert.location}
                                         </p>
-                                        <p>
-                                            <strong>Status:</strong> {alert.status}
+                                        <p className="mb-1">
+                                            <strong>Status:</strong>{" "}
+                                            <span
+                                                className={`text-${alert.status === "Active" ? "red" : "green"
+                                                    }-500`}
+                                            >
+                                                {alert.status}
+                                            </span>
                                         </p>
-                                        <p>
-                                            <strong>Priority:</strong> {alert.priority}
+                                        <p className="mb-1">
+                                            <strong>Priority:</strong>{" "}
+                                            <span
+                                                className={`text-${alert.priority === "High"
+                                                        ? "red"
+                                                        : alert.priority === "Medium"
+                                                            ? "yellow"
+                                                            : "green"
+                                                    }-500`}
+                                            >
+                                                {alert.priority}
+                                            </span>
                                         </p>
-                                        <p>
+                                        <p className="mb-1">
                                             <strong>Time:</strong>{" "}
                                             {new Date(alert.timestamp).toLocaleString()}
                                         </p>
-                                        <p>
+                                        <p className="mb-1">
                                             <strong>Initiator:</strong> {alert.initiatorName}
                                         </p>
+                                        {alert.description && (
+                                            <p className="mt-2 text-gray-600">{alert.description}</p>
+                                        )}
                                     </div>
                                 </Popup>
                             </Marker>
@@ -226,104 +244,111 @@ const MapView = React.forwardRef<any, MapViewProps>(
                     ))}
 
                     {/* Filter Controls */}
-                    <div
-                        className="leaflet-top leaflet-left"
-                        style={{ top: "80px", left: "10px" }}
-                    >
-                        <div className="bg-white p-3 rounded shadow">
-                            <Form.Group className="mb-2">
-                                <Form.Label>Priority</Form.Label>
-                                <Form.Select
-                                    size="sm"
-                                    value={filterPriority}
-                                    onChange={(e) => setFilterPriority(e.target.value)}
-                                >
-                                    <option value="All">All</option>
-                                    <option value="Low">Low</option>
-                                    <option value="Medium">Medium</option>
-                                    <option value="High">High</option>
-                                </Form.Select>
-                            </Form.Group>
+                    <div className="absolute top-20 left-4 bg-white p-4 rounded-lg shadow-lg z-[1000]">
+                        <Form.Group className="mb-3">
+                            <Form.Label className="font-semibold">Priority</Form.Label>
+                            <Form.Select
+                                size="sm"
+                                value={filterPriority}
+                                onChange={(e) => setFilterPriority(e.target.value)}
+                                className="w-full"
+                            >
+                                <option value="All">All</option>
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                            </Form.Select>
+                        </Form.Group>
 
-                            <Form.Group>
-                                <Form.Label>Status</Form.Label>
-                                <Form.Select
-                                    size="sm"
-                                    value={filterStatus}
-                                    onChange={(e) => setFilterStatus(e.target.value)}
-                                >
-                                    <option value="All">All</option>
-                                    <option value="Active">Active</option>
-                                    <option value="Resolved">Resolved</option>
-                                </Form.Select>
-                            </Form.Group>
-                        </div>
+                        <Form.Group>
+                            <Form.Label className="font-semibold">Status</Form.Label>
+                            <Form.Select
+                                size="sm"
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                                className="w-full"
+                            >
+                                <option value="All">All</option>
+                                <option value="Active">Active</option>
+                                <option value="Resolved">Resolved</option>
+                            </Form.Select>
+                        </Form.Group>
                     </div>
 
                     {/* Map Controls */}
-                    <div
-                        className="leaflet-bottom leaflet-right"
-                        style={{ bottom: "120px", right: "10px" }}
-                    >
-                        <div className="d-flex flex-column align-items-end">
-                            <OverlayTrigger
-                                placement="left"
-                                overlay={
-                                    <Tooltip id="toggle-view-tooltip">
-                                        {isEarthView ? "Switch to Street View" : "Switch to Earth View"}
-                                    </Tooltip>
-                                }
+                    <div className="absolute bottom-32 right-4 flex flex-col gap-2">
+                        <OverlayTrigger
+                            placement="left"
+                            overlay={
+                                <Tooltip id="toggle-view-tooltip">
+                                    {isEarthView
+                                        ? "Switch to Street View"
+                                        : "Switch to Earth View"}
+                                </Tooltip>
+                            }
+                        >
+                            <Button
+                                variant="light"
+                                onClick={toggleView}
+                                className="shadow-lg"
                             >
-                                <Button variant="light" onClick={toggleView} className="mb-2">
-                                    <MapIcon size={20} />
-                                </Button>
-                            </OverlayTrigger>
+                                <MapIcon size={20} />
+                            </Button>
+                        </OverlayTrigger>
 
-                            <OverlayTrigger
-                                placement="left"
-                                overlay={
-                                    <Tooltip id="heatmap-tooltip">
-                                        {showHeatmap ? "Hide Heatmap" : "Show Heatmap"}
-                                    </Tooltip>
-                                }
+                        <OverlayTrigger
+                            placement="left"
+                            overlay={
+                                <Tooltip id="heatmap-tooltip">
+                                    {showHeatmap ? "Hide Heatmap" : "Show Heatmap"}
+                                </Tooltip>
+                            }
+                        >
+                            <Button
+                                variant="light"
+                                onClick={toggleHeatmap}
+                                className="shadow-lg"
                             >
-                                <Button variant="light" onClick={toggleHeatmap} className="mb-2">
-                                    <AlertTriangle size={20} />
-                                </Button>
-                            </OverlayTrigger>
+                                <AlertTriangle size={20} />
+                            </Button>
+                        </OverlayTrigger>
 
-                            <OverlayTrigger
-                                placement="left"
-                                overlay={<Tooltip id="share-tooltip">Share Location</Tooltip>}
+                        <OverlayTrigger
+                            placement="left"
+                            overlay={<Tooltip id="share-tooltip">Share Location</Tooltip>}
+                        >
+                            <Button
+                                variant="light"
+                                onClick={handleShare}
+                                className="shadow-lg"
                             >
-                                <Button variant="light" onClick={handleShare} className="mb-2">
-                                    <Share2 size={20} />
-                                </Button>
-                            </OverlayTrigger>
+                                <Share2 size={20} />
+                            </Button>
+                        </OverlayTrigger>
 
-                            <OverlayTrigger
-                                placement="left"
-                                overlay={<Tooltip id="recenter-tooltip">Recenter Map</Tooltip>}
+                        <OverlayTrigger
+                            placement="left"
+                            overlay={<Tooltip id="recenter-tooltip">Recenter Map</Tooltip>}
+                        >
+                            <Button
+                                variant="light"
+                                onClick={handleRecenter}
+                                className="shadow-lg"
                             >
-                                <Button variant="light" onClick={handleRecenter}>
-                                    <Crosshair size={20} />
-                                </Button>
-                            </OverlayTrigger>
-                        </div>
+                                <Crosshair size={20} />
+                            </Button>
+                        </OverlayTrigger>
                     </div>
 
                     <ZoomControl position="bottomright" />
                     <MapHandler />
                 </MapContainer>
+
+                {/* Close Button */}
                 <Button
                     variant="secondary"
                     onClick={onClose}
-                    style={{
-                        position: "absolute",
-                        top: "20px",
-                        left: "20px",
-                        zIndex: 1000,
-                    }}
+                    className="absolute top-4 left-4 z-[1000] shadow-lg"
                 >
                     Close Map
                 </Button>
