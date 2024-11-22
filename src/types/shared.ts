@@ -23,6 +23,7 @@ export interface Alert {
     initiatorName: string;
     userId: string;
     resolvedAt?: Date;
+    resolvedTimestamp?: Date;
 }
 
 export interface EmergencyContact {

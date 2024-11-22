@@ -32,9 +32,10 @@ const convertDocToAlert = async (doc: QueryDocumentSnapshot<DocumentData>): Prom
         } else if (initialLocation.latitude && initialLocation.longitude) {
             address = await getAddressFromCoordinates(
                 initialLocation.latitude,
-                initialLocation.longitude
+                initialLocation.longitude,
+                false
             );
-            
+
             if (address !== "Unknown location") {
                 try {
                     await updateDoc(doc.ref, { address });
@@ -82,7 +83,7 @@ const AlertsView: React.FC<AlertViewProps> = ({ searchTerm }) => {
         const alertsRef = collection(db, "emergencies");
         const q = query(
             alertsRef,
-            where("status", "==", activeTab === "active" ? "active" : "resolved"),
+            where("status", "==", activeTab === "active" ? "active" : "Resolved"),
             orderBy("timestamp", sortOrder)
         );
 

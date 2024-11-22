@@ -203,7 +203,9 @@ const AlertCard: React.FC<AlertCardProps> = ({
                                 {alert.location}
                                 {alert.initialLocation && (
                                     <span className="text-gray-400 ml-2">
-                                        {`{${alert.initialLocation.latitude.toFixed(6)}°N, ${alert.initialLocation.longitude.toFixed(6)}°E}`}
+                                        {`{${alert.initialLocation.latitude.toFixed(
+                                            6
+                                        )}°N, ${alert.initialLocation.longitude.toFixed(6)}°E}`}
                                     </span>
                                 )}
                             </span>
