@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# CitizenShield-Admin
-A React-based admin dashboard for emergency response management. Enables monitoring of alerts, user management, forum moderation, and safety notifications. Integrates with CitizenShield mobile app for comprehensive emergency management.
-=======
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
@@ -72,4 +68,3 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
->>>>>>> 03909d6 (Initial commit of existing project)
