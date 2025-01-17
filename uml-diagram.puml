@@ -1,0 +1,124 @@
+@startuml CitizenShield Admin Dashboard
+
+' Styling
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+skinparam backgroundColor white
+skinparam padding 1
+skinparam ranksep 5
+skinparam nodesep 10
+skinparam defaultFontSize 11
+skinparam packagePadding 2
+skinparam maxMessageSize 50
+skinparam componentMargin 3
+skinparam rectanglePadding 3
+
+' Colors
+skinparam package {
+    BackgroundColor<<Core>> LightSkyBlue
+    BackgroundColor<<UI>> LightGreen
+    BackgroundColor<<Auth>> LightSalmon
+    BackgroundColor<<View>> LightYellow
+    BackgroundColor<<Util>> LightGray
+    BorderColor Black
+    FontColor Black
+}
+
+skinparam component {
+    BackgroundColor White
+    BorderColor Black
+    FontColor Black
+}
+
+' Title
+title CitizenShield Admin Dashboard Architecture
+
+package "Frontend Structure" {
+    package "Public" <<Core>> {
+        [index.html] as indexHtml
+        note right of indexHtml : Root template
+        [manifest.json] as manifest
+        [favicon.ico] as favicon
+    }
+
+    package "Core" <<Core>> {
+        [App] as app
+        [AuthContext] as authContext
+        [ProtectedRoute] as protectedRoute
+    }
+
+    package "Layout" <<UI>> {
+        [Header] as header
+        [Sider] as sider
+        [PublicHeader] as publicHeader
+    }
+
+    package "Auth" <<Auth>> {
+        [AuthPage] as authPage
+        [AuthService] as authService
+    }
+
+    package "Views" <<View>> {
+        package "Dashboard" {
+            [AlertsView] as alertsView
+            [BlogView] as blogView
+            [ForumView] as forumView
+            [MessagesView] as messagesView
+            [NotificationsView] as notificationsView
+            [UsersView] as usersView
+        }
+        package "Forms" {
+            [CreateArticleForm] as createArticleForm
+            [CreateNotificationForm] as createNotificationForm
+        }
+    }
+
+    package "UI Components" <<UI>> {
+        package "Cards" {
+            [AlertCard] as alertCard
+            [BlogArticleCard] as blogArticleCard
+            [ForumPostCard] as forumPostCard
+            [MessageCard] as messageCard
+            [NotificationCard] as notificationCard
+            [UserCard] as userCard
+        }
+    }
+
+    package "Utils" <<Util>> {
+        [FileGallery] as fileGallery
+        [FileUploader] as fileUploader
+        [MapView] as mapView
+        [ErrorHandler] as errorHandler
+        [LocationUtils] as locationUtils
+    }
+}
+
+' Relationships
+indexHtml --> app
+manifest --> indexHtml
+favicon --> indexHtml
+app --> authContext
+app --> protectedRoute
+authContext --> authService
+protectedRoute --> authContext
+app --> header
+app --> sider
+app --> publicHeader
+authPage --> authService
+blogView --> createArticleForm
+notificationsView --> createNotificationForm
+alertsView ..> alertCard
+blogView ..> blogArticleCard
+forumView ..> forumPostCard
+messagesView ..> messageCard
+notificationsView ..> notificationCard
+usersView ..> userCard
+mapView --> locationUtils
+app ...> errorHandler
+
+' Layout
+skinparam linetype polyline
+skinparam nodesep 5
+skinparam ranksep 5
+
+@enduml
